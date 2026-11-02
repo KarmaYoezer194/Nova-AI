@@ -1,0 +1,76 @@
+# ---------- Secrets: never commit these ----------
+.env
+.env.*
+*.pem
+*.p12
+*.jks
+*.keystore
+key.properties
+**/service-account*.json
+**/*-adminsdk-*.json
+.runtimeconfig.json
+
+# Firebase app config files. They contain an "API key" that only identifies
+# the Firebase project (it is not a secret), but our rule is "no keys in the
+# repo", so we keep them out. Recreate them with: flutterfire configure
+google-services.json
+GoogleService-Info.plist
+lib/firebase_options.dart
+firebase_app_id_file.json
+
+# ---------- Firebase CLI / emulator ----------
+.firebase/
+*-debug.log
+firebase-debug.*.log
+
+# ---------- Flutter / Dart build output ----------
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.pub-cache/
+.pub/
+build/
+coverage/
+*.g.dart.tmp
+
+# ---------- Android ----------
+android/.gradle/
+android/gradle/wrapper/gradle-wrapper.jar
+android/gradlew
+android/gradlew.bat
+android/local.properties
+android/app/debug/
+android/app/profile/
+android/app/release/
+android/app/.cxx/
+android/.kotlin/
+*.apk
+*.aab
+
+# ---------- iOS / macOS (not a focus, but keep builds out) ----------
+ios/Pods/
+ios/.symlinks/
+ios/Flutter/Flutter.framework
+ios/Flutter/Flutter.podspec
+ios/Flutter/Generated.xcconfig
+ios/Flutter/ephemeral/
+ios/Flutter/flutter_export_environment.sh
+**/xcuserdata/
+**/DerivedData/
+
+# ---------- Web / desktop generated files ----------
+**/ephemeral/
+**/generated_plugin_registrant.*
+
+# ---------- Editors and OS ----------
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/*
+!.vscode/extensions.json
+.DS_Store
+Thumbs.db
+*.swp
+*.log
