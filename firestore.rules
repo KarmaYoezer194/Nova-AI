@@ -1,0 +1,239 @@
+rules_version = '2';
+
+// Nova's Firestore security rules.
+//
+// The server checks these on EVERY read and write, whatever the app does.
+// Main idea: a signed-in user can only reach documents under users/{their uid},
+// and every write is checked for the right fields, types and sizes.
+//
+// Anything not matched below is denied.
+//
+// Deploy with:  firebase deploy --only firestore:rules
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ---------- Helpers ----------
+
+    function isOwner(uid) {
+      return request.auth != null && request.auth.uid == uid;
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    // An optional string field: either absent, or a string of at most max chars.
+    function optionalString(data, field, max) {
+      return !(field in data) || (data[field] is string && data[field].size() <= max);
+    }
+
+    // ---------- users/{uid} ----------
+    match /users/{uid} {
+      function validUser(data) {
+        return data.keys().hasOnly(['displayName', 'createdAt', 'customInstructions'])
+          && data.createdAt is timestamp
+          && optionalString(data, 'displayName', 100)
+          && optionalString(data, 'customInstructions', 2000);
+      }
+
+      allow read, delete: if isOwner(uid);
+      allow create: if isOwner(uid)
+        && validUser(incoming())
+        && incoming().createdAt == request.time;
+      allow update: if isOwner(uid)
+        && validUser(incoming())
+        && incoming().createdAt == resource.data.createdAt;
+
+      // ---------- users/{uid}/memories/{memoryId} ----------
+      // Short facts the user saved. The app allows 200 characters and 30
+      // memories; the rules allow up to 500 characters.
+      // Rules can't count documents, so the count limit is kept by the app,
+      // and the app only ever loads (and sends to the AI) the newest 30, so
+      // extra memories could never make prompts bigger.
+      match /memories/{memoryId} {
+        allow read, delete: if isOwner(uid);
+        allow create: if isOwner(uid)
+          && incoming().keys().hasOnly(['text', 'createdAt'])
+          && incoming().keys().hasAll(['text', 'createdAt'])
+          && incoming().text is string
+          && incoming().text.size() > 0
+          && incoming().text.size() <= 500
+          && incoming().createdAt == request.time;
+        // To change a memory, delete it and add a new one.
+        allow update: if false;
+      }
+
+      // ---------- users/{uid}/saved/{savedId} ----------
+      // Answers the user bookmarked. Only a short preview and the ids of the
+      // chat and message are kept, not the whole answer. The id is
+      // "{conversationId}_{messageId}", so one answer can't be saved twice.
+      match /saved/{savedId} {
+        allow read, delete: if isOwner(uid);
+        allow create: if isOwner(uid)
+          && incoming().keys().hasOnly(['conversationId', 'messageId',
+                                        'title', 'preview', 'createdAt'])
+          && incoming().keys().hasAll(['conversationId', 'messageId',
+                                       'title', 'preview', 'createdAt'])
+          && incoming().conversationId is string
+          && incoming().conversationId.size() > 0
+          && incoming().conversationId.size() <= 128
+          && incoming().messageId is string
+          && incoming().messageId.size() > 0
+          && incoming().messageId.size() <= 128
+          && savedId == incoming().conversationId + '_' + incoming().messageId
+          && incoming().title is string
+          && incoming().title.size() > 0
+          && incoming().title.size() <= 200
+          && incoming().preview is string
+          && incoming().preview.size() <= 500
+          && incoming().createdAt == request.time;
+        // Saved items never change; remove and save again instead.
+        allow update: if false;
+      }
+
+      // ---------- users/{uid}/feedback/{feedbackId} ----------
+      // Thumbs up or down on one of Nova's answers. Only the ids and the
+      // rating are kept, never the answer text. The id is
+      // "{conversationId}_{messageId}": one rating per answer, which can be
+      // changed (up <-> down) or removed.
+      match /feedback/{feedbackId} {
+        function validFeedback(data) {
+          return data.keys().hasOnly(['conversationId', 'messageId',
+                                      'rating', 'createdAt'])
+            && data.keys().hasAll(['conversationId', 'messageId',
+                                   'rating', 'createdAt'])
+            && data.conversationId is string
+            && data.conversationId.size() > 0
+            && data.conversationId.size() <= 128
+            && data.messageId is string
+            && data.messageId.size() > 0
+            && data.messageId.size() <= 128
+            && feedbackId == data.conversationId + '_' + data.messageId
+            && data.rating in ['up', 'down'];
+        }
+
+        allow read, delete: if isOwner(uid);
+        allow create: if isOwner(uid)
+          && validFeedback(incoming())
+          && incoming().createdAt == request.time;
+        // Only the rating may change.
+        allow update: if isOwner(uid)
+          && validFeedback(incoming())
+          && incoming().conversationId == resource.data.conversationId
+          && incoming().messageId == resource.data.messageId
+          && incoming().createdAt == resource.data.createdAt;
+      }
+
+      // ---------- users/{uid}/projects/{projectId} ----------
+      // A project's instructions and notes are sent with every message in
+      // its chats, so their size is limited. The app allows 60 / 1,500 /
+      // 6,000 characters and 20 projects; the rules allow a bit more.
+      // A chat links to a project only by id, and it is always looked up
+      // under users/{uid}, so a chat can never reach someone else's project.
+      match /projects/{projectId} {
+        function validProject(data) {
+          return data.keys().hasOnly(['name', 'instructions', 'notes', 'createdAt'])
+            && data.keys().hasAll(['name', 'createdAt'])
+            && data.name is string
+            && data.name.size() > 0
+            && data.name.size() <= 100
+            && optionalString(data, 'instructions', 2000)
+            && optionalString(data, 'notes', 10000)
+            && data.createdAt is timestamp;
+        }
+
+        allow read, delete: if isOwner(uid);
+        allow create: if isOwner(uid)
+          && validProject(incoming())
+          && incoming().createdAt == request.time;
+        allow update: if isOwner(uid)
+          && validProject(incoming())
+          && incoming().createdAt == resource.data.createdAt;
+      }
+
+      // ---------- users/{uid}/conversations/{conversationId} ----------
+      match /conversations/{conversationId} {
+        function validConversation(data) {
+          return data.keys().hasOnly(['title', 'projectId', 'answered',
+                                      'createdAt', 'updatedAt'])
+            && data.keys().hasAll(['title', 'createdAt', 'updatedAt'])
+            // false until Nova's first answer is saved; empty chats are
+            // hidden from the chat list. Older chats don't have it.
+            && (!('answered' in data) || data.answered is bool)
+            && data.title is string
+            && data.title.size() > 0
+            && data.title.size() <= 200
+            && optionalString(data, 'projectId', 128)
+            && data.createdAt is timestamp
+            && data.updatedAt is timestamp;
+        }
+
+        allow read, delete: if isOwner(uid);
+        allow create: if isOwner(uid)
+          && validConversation(incoming())
+          && incoming().createdAt == request.time
+          && incoming().updatedAt == request.time;
+        allow update: if isOwner(uid)
+          && validConversation(incoming())
+          && incoming().createdAt == resource.data.createdAt
+          && incoming().updatedAt == request.time;
+
+        // ---------- .../messages/{messageId} ----------
+        match /messages/{messageId} {
+          function validMessage(data) {
+            return data.keys().hasOnly(['role', 'text', 'createdAt',
+                                        'attachmentKind', 'attachmentName'])
+              && data.keys().hasAll(['role', 'text', 'createdAt'])
+              && data.role in ['user', 'model']
+              && data.text is string
+              && data.text.size() > 0
+              // User messages: 20,000 max. Model answers can be longer.
+              && data.text.size() <= (data.role == 'user' ? 20000 : 100000)
+              && data.createdAt == request.time
+              // Attachment NOTE only (the file itself is never stored):
+              // allowed on user messages, kind must be image or pdf.
+              && (!('attachmentKind' in data)
+                  || (data.role == 'user' && data.attachmentKind in ['image', 'pdf']))
+              && (!('attachmentName' in data) || 'attachmentKind' in data)
+              && optionalString(data, 'attachmentName', 120);
+          }
+
+          allow read, delete: if isOwner(uid);
+          allow create: if isOwner(uid) && validMessage(incoming());
+          // Messages are never edited after they are written.
+          allow update: if false;
+        }
+
+        // ---------- .../artifacts/{artifactId} ----------
+        // One saved VERSION of an artifact (a long document or code Nova
+        // wrote). Saved by the app, never by the AI. Display only.
+        match /artifacts/{artifactId} {
+          function validArtifact(data) {
+            return data.keys().hasOnly(['key', 'title', 'kind', 'language',
+                                        'content', 'version', 'messageId',
+                                        'createdAt'])
+              && data.keys().hasAll(['key', 'title', 'kind', 'content',
+                                     'version', 'messageId', 'createdAt'])
+              && data.key is string && data.key.size() <= 200
+              && data.title is string
+              && data.title.size() > 0 && data.title.size() <= 200
+              && data.kind in ['document', 'code']
+              && optionalString(data, 'language', 30)
+              && data.content is string
+              && data.content.size() > 0 && data.content.size() <= 100000
+              && data.version is int
+              && data.version >= 1 && data.version <= 1000
+              && data.messageId is string && data.messageId.size() <= 128
+              && data.createdAt == request.time;
+          }
+
+          allow read, delete: if isOwner(uid);
+          allow create: if isOwner(uid) && validArtifact(incoming());
+          // A version never changes; a change is a new version.
+          allow update: if false;
+        }
+      }
+    }
+  }
+}

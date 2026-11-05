@@ -1,0 +1,13 @@
+{
+  "name": "nova-rules-tests",
+  "private": true,
+  "description": "Tests for firestore.rules, run against the local Firestore emulator. Development only; never shipped.",
+  "type": "module",
+  "scripts": {
+    "test": "firebase emulators:exec --only firestore --project demo-nova \"node --test\""
+  },
+  "devDependencies": {
+    "@firebase/rules-unit-testing": "5.0.2",
+    "firebase": "^12.0.0"
+  }
+}

@@ -1,0 +1,6 @@
+# Settings for `flutter run -d chrome` (local development only).
+#
+# A fixed port keeps the same browser storage between runs, so the
+# App Check debug token stays the same and only has to be registered once.
+server:
+  port: 5000

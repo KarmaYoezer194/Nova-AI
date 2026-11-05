@@ -74,3 +74,8 @@ ios/Flutter/flutter_export_environment.sh
 Thumbs.db
 *.swp
 *.log
+
+# Rules tests (Phase 12)
+rules_test/node_modules/
+firebase-debug.log
+firestore-debug.log

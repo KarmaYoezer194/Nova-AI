@@ -1,0 +1,63 @@
+name: nova_chat
+description: "Nova, an AI chat app built with Flutter and Firebase."
+publish_to: 'none'
+version: 0.1.0+1
+
+environment:
+  sdk: ^3.12.2
+
+dependencies:
+  cloud_firestore: ^7.1.0
+  file_picker: ^13.3.2
+  firebase_ai: ^5.1.0
+  firebase_app_check: ^0.5.1
+  firebase_auth: ^7.0.1
+  firebase_core: ^5.1.0
+  firebase_remote_config: ^7.0.1
+  flutter:
+    sdk: flutter
+  # Part of the Flutter SDK. Flutter's web build imports it to register
+  # web plugins (like Firebase); newer plugins no longer pull it in for us.
+  flutter_markdown_plus: ^1.0.12
+  flutter_native_splash: ^2.4.8
+  flutter_svg: ^2.3.2
+  flutter_web_plugins:
+    sdk: flutter
+  google_fonts: ^8.2.1
+  lucide_icons_flutter: ^4.0.2
+  markdown: ^7.3.1
+  share_plus: ^13.3.1
+  shared_preferences: ^2.5.6
+  url_launcher: ^6.3.3
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+flutter:
+  uses-material-design: true
+
+  assets:
+    # Nova's logo (drawn with flutter_svg).
+    - assets/images/
+    # The welcome tour's pictures (decoration; compressed JPEGs).
+    - assets/onboarding/
+    # The fonts, bundled so nothing is downloaded at runtime. google_fonts
+    # finds them by file name (for example DMSans-Regular.ttf).
+    - assets/google_fonts/
+    # The fonts' SIL Open Font Licence texts (shown in the licence page).
+    - assets/licenses/
+
+# Native splash (shown by the system while Flutter loads). Regenerate after
+# changes with: dart run flutter_native_splash:create
+# The logo images are drawn from the same code as the in-app logo, at the
+# size of the Flutter splash's first frame (NovaSize.nativeSplashLogo).
+flutter_native_splash:
+  color: "#121214"
+  image: assets/splash/splash_logo.png
+  android: true
+  web: true
+  ios: false
+  android_12:
+    image: assets/splash/splash_logo_android12.png
+    color: "#121214"
